@@ -33,6 +33,7 @@ if ($ADMIN->fulltree) {
         480 => '480',
         800 => '800',
         1024 => '1024',
+        1280 => '1280',
         2048 => '2048'
     ];
     $settings->add(new admin_setting_configselect('filter_imageopt/maxwidth', get_string('maxwidth', 'filter_imageopt'),
