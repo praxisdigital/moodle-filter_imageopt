@@ -79,9 +79,8 @@ EOF;
      * @param int $width
      * @param int $height
      * @return string
-     * @throws file_exception
      */
-    private function img_add_width_height($img, $width, $height) {
+    private function img_add_width_height(string $img, $width, $height): string {
         $maxwidth = $this->config->maxwidth;
 
         if (stripos($img, ' width') !== false) {
@@ -125,12 +124,33 @@ EOF;
     }
 
     /**
+     * @param string $img
+     * @return string|string[]
+     */
+    private function img_add_classes(string $img) {
+        $class = 'pximage img-responsive atto_image_button_text-bottom';
+
+        $matches = [];
+        $regex = '/(?<=img )(?:|.*)(class(?:|\s)=(?:|\s)"(|.*)")/';
+        $match = preg_match($regex, $img, $matches);
+
+        if ($match) {
+            $img = str_ireplace($matches[1], 'class="'.$class.'"', $img);
+        } else {
+            $img = str_ireplace('<img ', '<img class="'.$class.'"', $img);
+        }
+
+        return $img;
+    }
+
+    /**
      * Create image optimiser url - will take an original file and resize it then forward on.
      * @param stored_file $file
      * @param string $originalsrc
      * @return moodle_url
+     * @throws moodle_exception
      */
-    public function image_opt_url(stored_file $file, $originalsrc) {
+    public function image_opt_url(stored_file $file, string $originalsrc): moodle_url {
         global $CFG;
 
         $maxwidth = $this->config->maxwidth;
@@ -138,7 +158,7 @@ EOF;
         $contextid = $file->get_contextid();
 
         $originalpath = local::get_img_path_from_src($originalsrc);
-        $urlpathid = local::add_url_path_to_queue($originalpath);
+        $urlpathid = local::add_url_path_to_queue((string) $originalpath);
 
         $url = $CFG->wwwroot.'/pluginfile.php/'.$contextid.'/filter_imageopt/'.$maxwidth.'/'.
                 $urlpathid.'/'.$filename;
@@ -146,17 +166,13 @@ EOF;
         return new moodle_url($url);
     }
 
-    private function process_img_tag(array $match) {
+    private function process_img_tag(array $match): string {
         global $CFG;
-
-        $fs = get_file_storage();
 
         $maxwidth = $this->config->maxwidth;
 
-        $optimisedavailable = false;
-
         // Don't process images that aren't in this site or don't have a relative path.
-        if (stripos($match[2], $CFG->wwwroot) === false && substr($match[2], 0, 1) != '/') {
+        if (stripos($match[2], $CFG->wwwroot) === false && substr($match[2], 0, 1) !== '/') {
             return $match[0];
         }
 
@@ -193,9 +209,9 @@ EOF;
 
         if (empty($this->config->loadonvisible) || $this->config->loadonvisible < 999) {
             return $this->apply_loadonvisible($match, $file, $originalsrc, $optimisedsrc, $optimisedavailable);
-        } else {
-            return $this->apply_img_tag($match, $file, $originalsrc, $optimisedsrc);
         }
+
+        return $this->apply_img_tag($match, $originalsrc, $optimisedsrc);
     }
 
     /**
@@ -206,9 +222,10 @@ EOF;
      * @param string $optimisedsrc
      * @param bool $optimisedavailable
      * @return string
+     * @throws file_exception
      */
-    private function apply_loadonvisible(array $match, stored_file $file, $originalsrc, $optimisedsrc,
-                                         $optimisedavailable = false) {
+    private function apply_loadonvisible(array $match, stored_file $file, string $originalsrc, string $optimisedsrc,
+                                         $optimisedavailable = false): string {
         global $PAGE;
 
         static $jsloaded = false;
@@ -218,7 +235,7 @@ EOF;
 
         // This is so we can make the first couple of images load immediately without placeholding.
         if ($imgcount <= $this->config->loadonvisible) {
-            return $this->apply_img_tag($match, $file, $originalsrc, $optimisedsrc);
+            return $this->apply_img_tag($match, $originalsrc, $optimisedsrc);
         }
 
         if (!$jsloaded) {
@@ -235,8 +252,6 @@ EOF;
             return ($img);
         }
 
-        $maxwidth = $this->config->maxwidth;
-
         if (!$file) {
             return $img;
         }
@@ -247,6 +262,8 @@ EOF;
         $width = $imageinfo->width;
         $height = $imageinfo->height;
         $img = $this->img_add_width_height($img, $width, $height);
+
+        $img = $this->img_add_classes($img);
 
         // Replace img src attribute and add data-loadonvisible.
         if (!$file) {
@@ -267,12 +284,12 @@ EOF;
     /**
      * Process the image tag so that it has the new resize url and appropriate width / height settings.
      * @param array $match (0 - full img tag, 1 src tag and contents, 2 - contents of src, 3 - pluginfile.php/)
-     * @param stored_file $file
      * @param string $originalsrc
      * @param string $optimisedsrc
      * @return string
+     * @throws file_exception
      */
-    private function apply_img_tag($match, stored_file $file, $originalsrc, $optimisedsrc) {
+    private function apply_img_tag(array $match, string $originalsrc, string $optimisedsrc): string {
 
         if (stripos($match[3], 'optimised/') !== false) {
             // Already processed.
@@ -303,6 +320,7 @@ EOF;
         $newsrc = $optimisedsrc;
 
         $img = $this->img_add_width_height($match[0], $width, $height);
+        $img = $this->img_add_classes($img);
 
         $img = str_replace($match[2], $newsrc, $img);
 
@@ -318,7 +336,7 @@ EOF;
      * @param array $options
      * @return string String containing processed HTML.
      */
-    public function filter($text, array $options = array()) {
+    public function filter($text, array $options = array()): string {
         if (stripos($text, '<img') === false || strpos($text, 'pluginfile.php') === false) {
             return $text;
         }
